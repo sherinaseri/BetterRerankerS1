@@ -128,6 +128,8 @@ def main(args):
     args.batch_size = 1 # this should be 1 for the code to run correctly
     args.stride = 10
     args.rrf_k = 60
+    args.query_maxlen = 32
+    args.doc_maxlen = 180 
     set_seed(args.seed)
     args.device = torch.cuda.current_device()
     os.makedirs(args.output_dir, exist_ok=True)

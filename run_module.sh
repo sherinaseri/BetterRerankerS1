@@ -11,6 +11,4 @@ python3 rerank.py \
         --task_file $BASE_PATH/better_P3/data/BETTER_PHASE3_COMBO_ARABIC_FARSI_RUSSIAN/62e171cedebb2f0d2619f2f6.analytic_tasks.json \
         --test_qrels $BASE_PATH/better_P3/data/BETTER_PHASE3_COMBO_ARABIC_FARSI_RUSSIAN/IR-relevance-assessments.qrels.GALAGO \
         --test_run $BASE_PATH/better_P3/experiments/BetterRerankerS1/runs/62e171cedebb2f0d2619f2f6.FINAL.out \
-        --query_maxlen 32 \
-        --doc_maxlen 180 \
         --rerank_topK 1000
