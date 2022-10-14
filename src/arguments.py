@@ -49,7 +49,7 @@ def get_rerank_parser():
     parser.add_argument("--rerank_topK", type=int, default=100, help="rerank topK from run file")
     parser.add_argument("--collection_file",default=None,type=str,required=True,help="The test corpus dir.")
     parser.add_argument("--task_file",default=None,type=str,required=True,help="The test query file.")
-    parser.add_argument("--test_qrels",default=None,type=str,required=True,help="The test query relevant judgments in TREC style.")
+    parser.add_argument("--test_qrels",default=None,type=str,required=False,help="The test query relevant judgments in TREC style.")
     parser.add_argument("--test_run",default=None,type=str,required=False,help="The test rerank input data file in galago style.")
     # parser.add_argument("--trec_eval", type=str, required=True, help="trec eval file")
     parser.add_argument('--include_task_docs', default=False, action='store_true', help="including task documents in the query")
