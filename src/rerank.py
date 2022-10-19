@@ -114,7 +114,7 @@ def rerank(model, tokenizer, args, query_loader, document_loader, baseline_run):
             fusion_run[qid][did] = fused_score
     
     # writing the fused run
-    fusion_file = os.path.join(args.output_dir, f'Fused_DPR_Reranked_w_Baseline_rrf_k_{args.rrf_k}.run')
+    fusion_file = os.path.join(args.output_dir, f'Fusion_DPR_Reranked_w_Baseline_rrf_k_{args.rrf_k}.run')
     with open(fusion_file, 'wt') as runfile:
         for qid in tqdm(fusion_run, "writing fused run ..."):
             dummy_score = 100000
