@@ -137,6 +137,7 @@ def document_tokenizer_paragraph(dtxt, args, tokenizer):
                      return_overflowing_tokens=True, 
                      stride=args.stride)
     
+    
     ids, mask = toks['input_ids'][:50].to(args.device), toks['attention_mask'][:50].to(args.device)
     # ids, mask = toks['input_ids'].to(args.device), toks['attention_mask'].to(args.device)
     return ids, mask
@@ -150,6 +151,7 @@ def query_tokenizer_paragraph(qtxt, args, tokenizer):
                      return_overflowing_tokens=True, 
                      stride=args.stride)
     
+    # print(len(toks['input_ids']))
     ids, mask = toks['input_ids'][:50].to(args.device), toks['attention_mask'][:50].to(args.device)
     # print(toks)
     # ids, mask = toks['input_ids'].to(args.device), toks['attention_mask'].to(args.device)

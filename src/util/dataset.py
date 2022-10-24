@@ -237,28 +237,36 @@ def get_rerank_dataset(args):
                 req_docs = []
                 for doc in req['req-docs']:
                     req_docs.append(req['req-docs'][doc]['doc-text'])
-                # print("0000", req_docs)
                 if args.include_task_docs:
                     queries[req_id] = "\t".join(task_docs) + "\t" + "\t".join(req_docs)
                 else:
                     queries[req_id] = "\t".join(req_docs)
-                # print("***",queries[req_id])
     
     elif args.mode == "AUTO-HITL":
-        print("WARNING: This is only a test on the queries with request statment and doesn't include all the queries. ")
         for task in analytic_task:
             task_title = task['task-title']
             task_statement = task['task-stmt']
+            task_narr = task['task-narr']
+            task_docs = []
+            for doc in task['task-docs']:
+                task_docs.append(task['task-docs'][doc]['segment-text'])
+            task_docs_text = "\t".join(task_docs)
             for req in task['requests']:
                 req_id = req['req-num']
                 if 'req-text' in req:
-                    req_text = req['req-text']
+                    if req['req-text'] is not None:
+                        req_text = req['req-text']
+                    else:
+                        req_text = ''
                 else:
-                    continue
-                queries[req_id] = " ".join([task_title, task_statement, req_text])
+                    req_text = ''
+                req_docs = []
+                for doc in req['req-docs']:
+                    req_docs.append(req['req-docs'][doc]['segment-text'])
+                req_docs_text = "\t".join(req_docs)
+                queries[req_id] = "\t".join([task_title, task_statement, task_narr, task_docs_text, req_text, req_docs_text])
     else:
-        raise ValueError("Please pass the mode either as AUTO or AUTO-HITL")
-        
+        raise ValueError("Please pass the mode either as AUTO or AUTO-HITL")      
     
     docs = read_better_collection(args)
     qrels = read_qrels(args.test_qrels)
