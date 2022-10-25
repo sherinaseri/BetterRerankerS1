@@ -249,7 +249,7 @@ def get_rerank_dataset(args):
             task_narr = task['task-narr']
             task_docs = []
             for doc in task['task-docs']:
-                task_docs.append(task['task-docs'][doc]['segment-text'])
+                task_docs.append(task['task-docs'][doc]['doc-text'])
             task_docs_text = "\t".join(task_docs)
             for req in task['requests']:
                 req_id = req['req-num']
@@ -262,9 +262,12 @@ def get_rerank_dataset(args):
                     req_text = ''
                 req_docs = []
                 for doc in req['req-docs']:
-                    req_docs.append(req['req-docs'][doc]['segment-text'])
+                    req_docs.append(req['req-docs'][doc]['doc-text'])
                 req_docs_text = "\t".join(req_docs)
-                queries[req_id] = "\t".join([task_title, task_statement, task_narr, task_docs_text, req_text, req_docs_text])
+                if args.include_task_docs:
+                    queries[req_id] = "\t".join([task_title, task_statement, task_narr, task_docs_text, req_text, req_docs_text])
+                else:
+                    queries[req_id] = "\t".join([task_title, task_statement, task_narr, req_text, req_docs_text])
     else:
         raise ValueError("Please pass the mode either as AUTO or AUTO-HITL")      
     
