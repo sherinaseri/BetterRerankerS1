@@ -26,7 +26,7 @@ def read_triple_ids(path):
 def read_collection(path):
     docs = {}
     with open(path, 'r') as f:
-        for line in tqdm(f, total=get_num_lines(path), desc='read docs'):
+        for line in tqdm(f, desc='read docs'):
             data = line.rstrip('\n').split('\t')
             assert len(data) == 2
             docid, doctxt = data
@@ -118,7 +118,7 @@ def read_better_collection(args):
     collection_path = os.path.join(args.collection_file)
     docs = {}
     with open(collection_path, 'r') as file:
-        for line in tqdm(file, total=get_num_lines(collection_path), desc='loading collection'):
+        for line in tqdm(file, desc='loading collection'):
             s = line.strip()
             metadata = json.loads(s)
             text = metadata['derived-metadata']['text'].strip()
@@ -244,22 +244,25 @@ def get_rerank_dataset(args):
     
     elif args.mode == "AUTO-HITL":
         for task in analytic_task:
-            task_title = task['task-title']
-            task_statement = task['task-stmt']
-            task_narr = task['task-narr']
+            task_title = ''
+            task_statement = ''
+            task_narr = ''
+            if 'task-title' in task:
+                task_title = task['task-title']
+            if 'task-stmt' in task:
+                task_statement = task['task-stmt']
+            if 'task-narr' in task:
+                task_narr = task['task-narr']
             task_docs = []
             for doc in task['task-docs']:
                 task_docs.append(task['task-docs'][doc]['doc-text'])
             task_docs_text = "\t".join(task_docs)
             for req in task['requests']:
                 req_id = req['req-num']
+                req_text = ''
                 if 'req-text' in req:
                     if req['req-text'] is not None:
                         req_text = req['req-text']
-                    else:
-                        req_text = ''
-                else:
-                    req_text = ''
                 req_docs = []
                 for doc in req['req-docs']:
                     req_docs.append(req['req-docs'][doc]['doc-text'])
@@ -268,6 +271,7 @@ def get_rerank_dataset(args):
                     queries[req_id] = "\t".join([task_title, task_statement, task_narr, task_docs_text, req_text, req_docs_text])
                 else:
                     queries[req_id] = "\t".join([task_title, task_statement, task_narr, req_text, req_docs_text])
+                queries[req_id] = re.sub(r'\t+', r'\t', queries[req_id])
     else:
         raise ValueError("Please pass the mode either as AUTO or AUTO-HITL")      
     
