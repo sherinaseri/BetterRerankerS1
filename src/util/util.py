@@ -152,7 +152,7 @@ def query_tokenizer_paragraph(qtxt, args, tokenizer):
                      stride=args.stride)
     
     # print(len(toks['input_ids']))
-    ids, mask = toks['input_ids'][:50].to(args.device), toks['attention_mask'][:50].to(args.device)
+    ids, mask = toks['input_ids'][:200].to(args.device), toks['attention_mask'][:200].to(args.device)
     # print(toks)
     # ids, mask = toks['input_ids'].to(args.device), toks['attention_mask'].to(args.device)
     return ids, mask
