@@ -52,14 +52,19 @@ def read_run(run_file, topK=500):
             run[qid][did] = score
             
     run_w_topk_retdocs = defaultdict(dict)
+    run_w_retdocs_after_k = defaultdict(dict)
     for qid in run:
         retdocs = sorted(run[qid].items(), key=lambda x: (x[1], x[0]), reverse=True)
         for retdoc in retdocs[:topK]:
             doc_id = retdoc[0]
             doc_score = retdoc[1]
             run_w_topk_retdocs[qid][doc_id] = doc_score
+        for retdoc in retdocs[topK+1:]:
+            doc_id = retdoc[0]
+            doc_score = retdoc[1]
+            run_w_retdocs_after_k[qid][doc_id] = doc_score
     
-    return run_w_topk_retdocs
+    return run_w_topk_retdocs, run_w_retdocs_after_k
 
 def read_qrels(qrel_file):
     qrels = dict()
@@ -277,14 +282,14 @@ def get_rerank_dataset(args):
     
     docs = read_better_collection(args)
     qrels = read_qrels(args.test_qrels)
-    runs = read_run(args.test_run, args.rerank_topK)   
+    run_w_topk_retdocs, run_w_retdocs_after_k = read_run(args.test_run, args.rerank_topK)   
     
-    retrieved_docs = {}
-    for q in runs:
-        for doc in runs[q]:
-            retrieved_docs[doc] = docs[doc]
+    topk_retrieved_docs = {}
+    for q in run_w_topk_retdocs:
+        for doc in run_w_topk_retdocs[q]:
+            topk_retrieved_docs[doc] = docs[doc]
     
     query_dataset = QueryDataset(queries)
-    rerank_document_dataset = CollectionDataset(list(retrieved_docs.items()))
+    rerank_document_dataset = CollectionDataset(list(topk_retrieved_docs.items()))
 
-    return query_dataset, rerank_document_dataset, runs
+    return query_dataset, rerank_document_dataset, run_w_topk_retdocs, run_w_retdocs_after_k

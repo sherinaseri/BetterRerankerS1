@@ -40,7 +40,7 @@ def score_agg(scores, query_reps, doc_reps, args):
         raise NotImplementedError
 
 def get_datasets(args):
-    query_dataset, rerank_document_dataset, run = get_rerank_dataset(args)  
+    query_dataset, rerank_document_dataset, run_w_topk_retdocs, run_w_retdocs_after_k = get_rerank_dataset(args)  
     
     query_loader = torch.utils.data.DataLoader(query_dataset,
                                                    batch_size=args.batch_size,
@@ -51,10 +51,10 @@ def get_datasets(args):
                                                       batch_size=args.batch_size, 
                                                       drop_last=False)
     
-    return query_loader, document_loader, run
+    return query_loader, document_loader, run_w_topk_retdocs, run_w_retdocs_after_k
 
 
-def rerank(model, tokenizer, args, query_loader, document_loader, baseline_run):
+def rerank(model, tokenizer, args, query_loader, document_loader, run_w_topk_retdocs, run_w_retdocs_after_k):
     model.eval()
     rerank_run = defaultdict(dict)
     
@@ -78,7 +78,7 @@ def rerank(model, tokenizer, args, query_loader, document_loader, baseline_run):
                 
         
         for qid in tqdm(qreps):
-            rank_list = baseline_run[qid]
+            rank_list = run_w_topk_retdocs[qid]
             query_rep = qreps[qid].to(args.device)
             for docid in rank_list:
                 document_rep = dreps[docid].to(args.device)
@@ -86,42 +86,94 @@ def rerank(model, tokenizer, args, query_loader, document_loader, baseline_run):
                 score = score_agg(model.score(query_rep, document_rep), query_rep, document_rep, args)            
                 rerank_run[qid][docid] = score
     
-    # writing the re-ranked run
-    runf = os.path.join(args.output_dir, f'DPR-Reranked.run')
-    with open(runf, 'wt') as runfile:
-        for qid in tqdm(rerank_run, desc="writing re-ranked run ..."):
-            scores = list(sorted(rerank_run[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
-            for i, (did, score) in enumerate(scores):
-                runfile.write(f'{qid} 0 {did} {i+1} {score} run\n')
     
-    # changing the baseline run data structure for reciprocal rank fusion
-    baseline_list = {}
-    for qid in baseline_run:
-        ranklist = list(sorted(baseline_run[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
-        baseline_list.setdefault(qid, [])
-        for retdoc in ranklist:
-            baseline_list[qid].append(retdoc[0])
+    rerank_list = defaultdict(list)
+    rerank_file = os.path.join(args.output_dir, f'dpr-reranked_rerank_topk_{args.rerank_topK}.run')
+    with open(rerank_file, 'wt') as runfile:
+        for qid in tqdm(rerank_run,  desc="writing re-ranked run ..."):
+            dummy_score = 100000
+            scores_rerank_run = list(sorted(rerank_run[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
+            for i, (did, score) in enumerate(scores_rerank_run):
+                runfile.write(f'{qid} 0 {did} {i+1} {dummy_score} run\n')
+                dummy_score -= 1
+            
+            scores_run_w_retdocs_after_k = list(sorted(run_w_retdocs_after_k[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
+            for j, (did, score) in enumerate(scores_run_w_retdocs_after_k):
+                i += 1
+                runfile.write(f'{qid} 0 {did} {i} {dummy_score} run\n')
+                dummy_score -= 1
+            rerank_list[qid] = [did for did, _ in scores_rerank_run] + [did for did, _ in scores_run_w_retdocs_after_k]
     
-    # reciprocal rank fusion of baseline and re-ranked run
+    baseline_list = defaultdict(list)
+    baseline_file = os.path.join(args.output_dir, f'baseline_rerank_topk_{args.rerank_topK}.run')
+    with open(baseline_file, 'wt') as runfile:
+        for qid in tqdm(run_w_topk_retdocs,  desc="writing baseline run ..."):
+            dummy_score = 100000
+            scores_run_w_topk_retdocs = list(sorted(run_w_topk_retdocs[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
+            for i, (did, score) in enumerate(scores_run_w_topk_retdocs):
+                runfile.write(f'{qid} 0 {did} {i+1} {dummy_score} run\n')
+                dummy_score -= 1
+            
+            scores_run_w_retdocs_after_k = list(sorted(run_w_retdocs_after_k[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
+            for j, (did, score) in enumerate(scores_run_w_retdocs_after_k):
+                i += 1
+                runfile.write(f'{qid} 0 {did} {i} {dummy_score} run\n')
+                dummy_score -= 1
+            baseline_list[qid] = [did for did, _ in scores_run_w_topk_retdocs] + [did for did, _ in scores_run_w_retdocs_after_k]
+    
     fusion_run = defaultdict(dict)
-    for qid in tqdm(rerank_run):
-        rerank_list = list(sorted(rerank_run[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
-        for i in range(len(rerank_list)):
-            did = rerank_list[i][0]
+    for qid in rerank_list:
+        for i, did in enumerate(rerank_list[qid]):
             rerank_at = i + 1
             baseline_at = baseline_list[qid].index(did) + 1
             fused_score = (1/(args.rrf_k + rerank_at)) + (1/(args.rrf_k + baseline_at))
             fusion_run[qid][did] = fused_score
-    
-    # writing the fused run
-    fusion_file = os.path.join(args.output_dir, f'Fusion_DPR_Reranked_w_Baseline_rrf_k_{args.rrf_k}.run')
+            
+    fusion_file = os.path.join(args.output_dir, f'fusion_rerank_topk_{args.rerank_topK}.run')
     with open(fusion_file, 'wt') as runfile:
-        for qid in tqdm(fusion_run, "writing fused run ..."):
+        for qid in tqdm(fusion_run,  desc="writing fusion run ..."):
             dummy_score = 100000
             fused_scores = list(sorted(fusion_run[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
             for i, (did, score) in enumerate(fused_scores):
                 runfile.write(f'{qid} 0 {did} {i+1} {dummy_score} run\n')
-                dummy_score -= 1
+                dummy_score -= 1  
+    
+#     # writing the re-ranked run
+#     runf = os.path.join(args.output_dir, f'DPR-Reranked.run')
+#     with open(runf, 'wt') as runfile:
+#         for qid in tqdm(rerank_run, desc="writing re-ranked run ..."):
+#             scores = list(sorted(rerank_run[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
+#             for i, (did, score) in enumerate(scores):
+#                 runfile.write(f'{qid} 0 {did} {i+1} {score} run\n')
+    
+#     # changing the baseline run data structure for reciprocal rank fusion
+#     baseline_list = {}
+#     for qid in baseline_run:
+#         ranklist = list(sorted(baseline_run[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
+#         baseline_list.setdefault(qid, [])
+#         for retdoc in ranklist:
+#             baseline_list[qid].append(retdoc[0])
+    
+#     # reciprocal rank fusion of baseline and re-ranked run
+#     fusion_run = defaultdict(dict)
+#     for qid in tqdm(rerank_run):
+#         rerank_list = list(sorted(rerank_run[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
+#         for i in range(len(rerank_list)):
+#             did = rerank_list[i][0]
+#             rerank_at = i + 1
+#             baseline_at = baseline_list[qid].index(did) + 1
+#             fused_score = (1/(args.rrf_k + rerank_at)) + (1/(args.rrf_k + baseline_at))
+#             fusion_run[qid][did] = fused_score
+    
+#     # writing the fused run
+#     fusion_file = os.path.join(args.output_dir, f'Fusion_DPR_Reranked_w_Baseline_rrf_k_{args.rrf_k}.run')
+#     with open(fusion_file, 'wt') as runfile:
+#         for qid in tqdm(fusion_run, "writing fused run ..."):
+#             dummy_score = 100000
+#             fused_scores = list(sorted(fusion_run[qid].items(), key=lambda x: (x[1], x[0]), reverse=True))
+#             for i, (did, score) in enumerate(fused_scores):
+#                 runfile.write(f'{qid} 0 {did} {i+1} {dummy_score} run\n')
+#                 dummy_score -= 1
         
 def main(args):
     args.score_agg = "colbert"
@@ -147,8 +199,8 @@ def main(args):
         state_dict = torch.load(os.path.join(args.checkpoint))["model_state_dict"]
         model.load_state_dict(state_dict)
     
-    query_loader, document_loader, baseline_run = get_datasets(args)  
-    rerank(model, tokenizer, args, query_loader, document_loader, baseline_run)
+    query_loader, document_loader, run_w_topk_retdocs, run_w_retdocs_after_k = get_datasets(args)  
+    rerank(model, tokenizer, args, query_loader, document_loader, run_w_topk_retdocs, run_w_retdocs_after_k)
      
 if __name__ == '__main__':
     parser = get_rerank_parser()
